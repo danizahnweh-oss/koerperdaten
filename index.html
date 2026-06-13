@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Körperdaten</title>
+</head>
+<body>
+<div class="bg-fx" aria-hidden="true"></div>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo"><span>B</span></div>
+      <div>
+        <h1>Körperdaten</h1>
+        <div class="sub" id="subline">Dein persönliches Tracking</div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn ghost" id="settingsBtn">⚙ Einstellungen</button>
+      <button class="btn ghost" id="exportBtn">↓ Export</button>
+      <button class="btn ghost" id="importBtn">↑ Import</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </header>
+
+  <!-- Hero: 3D-Körper + Kennwerte -->
+  <section class="hero">
+    <div class="panel viewer" id="viewer">
+      <svg class="leader-svg" id="leaderSvg" aria-hidden="true"></svg>
+      <div class="ring-labels" id="ringLabels"></div>
+      <div class="viewer-foot">
+        <span id="bodyDate"></span>
+        <span class="hint" id="dragHint">Ziehen zum Drehen</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="stats" id="stats"></div>
+      <div class="panel xpanel" id="bodyExtra"></div>
+    </div>
+  </section>
+
+  <!-- Verlauf -->
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Verlauf</h2>
+      <div class="tabs" id="metricTabs"></div>
+    </div>
+    <div class="chart-box">
+      <svg class="chart" id="chart"></svg>
+      <div class="tooltip" id="tooltip"></div>
+      <div class="chart-empty" id="chartEmpty" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Neue Messung -->
+  <div class="panel">
+    <div class="panel-head"><h2>Neue Messung</h2></div>
+    <form id="entryForm">
+      <div class="form-grid">
+        <div class="field"><label for="f-date">Datum</label><input type="date" id="f-date" required></div>
+        <div class="field"><label for="f-weight">Gewicht (kg)</label><input type="number" step="0.1" id="f-weight" placeholder="z.B. 75.4"></div>
+        <div class="field"><label for="f-fat">Körperfett (%)</label><input type="number" step="0.1" id="f-fat" placeholder="z.B. 18.2"></div>
+        <div class="field"><label for="f-muscle">Muskelmasse (kg)</label><input type="number" step="0.1" id="f-muscle" placeholder="z.B. 34.5"></div>
+        <div class="field"><label for="f-neck">Hals (cm)</label><input type="number" step="0.1" id="f-neck" placeholder="z.B. 38"></div>
+        <div class="field"><label for="f-waist">Taille (cm)</label><input type="number" step="0.1" id="f-waist" placeholder="z.B. 82"></div>
+        <div class="field"><label for="f-chest">Brust (cm)</label><input type="number" step="0.1" id="f-chest" placeholder="z.B. 100"></div>
+        <div class="field"><label for="f-hip">Hüfte (cm)</label><input type="number" step="0.1" id="f-hip" placeholder="z.B. 95"></div>
+        <div class="field"><label for="f-arm">Oberarm (cm)</label><input type="number" step="0.1" id="f-arm" placeholder="z.B. 36"></div>
+        <div class="field"><label for="f-thigh">Oberschenkel (cm)</label><input type="number" step="0.1" id="f-thigh" placeholder="z.B. 58"></div>
+        <div class="field notes"><label for="f-notes">Notiz (optional)</label><input type="text" id="f-notes" placeholder="z.B. nach dem Aufstehen, gut geschlafen"></div>
+      </div>
+      <div class="form-actions">
+        <button type="reset" class="btn ghost">Zurücksetzen</button>
+        <button type="submit" class="btn primary">Messung speichern</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Historie -->
+  <div class="panel">
+    <div class="panel-head"><h2>Alle Einträge</h2><span class="sub" id="count"></span></div>
+    <div class="table-wrap"><table id="historyTable"></table></div>
+    <div class="empty-state" id="historyEmpty">Noch keine Einträge vorhanden.</div>
+  </div>
+
+  <p class="foot-note">≈ automatisch berechnet · Körperfett: US-Navy-Methode (Größe, Hals, Taille<span id="hipHint"></span>) · Muskelmasse: Lee-Formel (Gewicht, Größe, Alter, Geschlecht) · Fett- &amp; Magermasse aus Gewicht × Körperfett</p>
+
+</div>
+
+<!-- Einstellungen -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h3>Einstellungen</h3>
+    <p>Größe, Geschlecht und Geburtsjahr werden für die automatische Berechnung von BMI, Körperfett (US-Navy-Methode) und Muskelmasse (Lee-Formel) verwendet.</p>
+    <div class="field"><label for="s-height">Körpergröße (cm)</label><input type="number" step="0.5" id="s-height" placeholder="z.B. 178"></div>
+    <div class="field"><label for="s-gender">Geschlecht</label>
+      <select id="s-gender">
+        <option value="">– nicht angegeben –</option>
+        <option value="m">Männlich</option>
+        <option value="w">Weiblich</option>
+      </select>
+    </div>
+    <div class="field"><label for="s-birth">Geburtsjahr</label><input type="number" step="1" min="1900" max="2026" id="s-birth" placeholder="z.B. 1990"></div>
+    <div class="field"><label for="s-name">Anzeigename (optional)</label><input type="text" id="s-name" placeholder="z.B. Daniel"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="clearAllBtn" style="margin-right:auto">Alle Daten löschen</button>
+      <button class="btn ghost" id="settingsCancel">Abbrechen</button>
+      <button class="btn primary" id="settingsSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
