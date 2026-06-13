@@ -1,19 +1,19 @@
-// 3D-Viewer: rotierende Hologramm-Figur, Mess-Ringe, HUD-Labels mit
-// Leader-Linien, die der Projektion jedes Frames folgen.
+// 3D-Viewer: rotierende Hologramm-Figur mit echtem Shading, Mess-Ringe,
+// HUD-Labels mit Leader-Linien, die der Silhouette jedes Frames folgen.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildFigure, buildRings, setRingRadius, radiusFromCircumference, ringAnchor, ACCENT, BAD } from "./figure.js";
+import { buildFigure, buildRings, setRingRadius, radiusFromCircumference, ringEdgeScreen, ACCENT, BAD } from "./figure.js";
 import { db, selectMetric } from "../store.js";
 import { metric, trendOf } from "../metrics.js";
 import { fmtNum, reducedMotion } from "../util.js";
 
 let renderer, scene, camera, controls, bodyGroup;
-let rings=[];          // [{def, holder, ring, hit, mat, label, line}]
+let rings=[];          // [{def, holder, ring, hit, mat, label, line, dot}]
 let container, labelLayer, leaderSvg;
 let hoveredId=null;
 const raycaster=new THREE.Raycaster();
 const pointer=new THREE.Vector2();
-const _world=new THREE.Vector3();
+const _edge=new THREE.Vector2();
 
 const SVGNS="http://www.w3.org/2000/svg";
 
@@ -23,62 +23,73 @@ export function initBodyScene(){
   leaderSvg=document.getElementById("leaderSvg");
 
   scene=new THREE.Scene();
-  camera=new THREE.PerspectiveCamera(36, 1, 0.1, 50);
-  camera.position.set(0, 1.15, 2.9);
+  scene.fog=new THREE.FogExp2(0x0a0e16, 0.16);
+  camera=new THREE.PerspectiveCamera(34, 1, 0.1, 50);
+  camera.position.set(0, 1.12, 3.35);
 
   renderer=new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
   container.prepend(renderer.domElement);
 
+  // Beleuchtung: gibt dem Körper Volumen, Cyan-Rim für den Sci-Fi-Look
+  scene.add(new THREE.HemisphereLight(0x2e7886, 0x05101a, 0.85));
+  const key=new THREE.DirectionalLight(0xbfeef5, 1.15);
+  key.position.set(-1.6, 2.4, 2.2);
+  scene.add(key);
+  const rim=new THREE.DirectionalLight(0x46d8e8, 2.1);
+  rim.position.set(1.4, 1.0, -2.4);
+  scene.add(rim);
+  const fill=new THREE.PointLight(0x2aa6b8, 0.7, 8);
+  fill.position.set(2.2, 0.6, 1.6);
+  scene.add(fill);
+
   controls=new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 0.95, 0);
+  controls.target.set(0, 0.98, 0);
   controls.enablePan=false;
   controls.enableZoom=false;
   controls.enableDamping=true;
-  controls.dampingFactor=0.06;
+  controls.dampingFactor=0.07;
   controls.minPolarAngle=Math.PI*0.40;
-  controls.maxPolarAngle=Math.PI*0.55;
-  controls.autoRotate=!reducedMotion;
-  controls.autoRotateSpeed=1.1;
+  controls.maxPolarAngle=Math.PI*0.56;
+  controls.autoRotate=true;                 // dreht sich als Default ab Start
+  controls.autoRotateSpeed=reducedMotion ? 0.6 : 1.5;
 
-  // Nach Interaktion kurz pausieren, dann weiterdrehen
+  // Nach manuellem Drehen kurz pausieren, dann weiterdrehen
   let resumeTimer=null;
-  controls.addEventListener("start", ()=>{
-    controls.autoRotate=false;
-    clearTimeout(resumeTimer);
-  });
+  controls.addEventListener("start", ()=>{ controls.autoRotate=false; clearTimeout(resumeTimer); });
   controls.addEventListener("end", ()=>{
     clearTimeout(resumeTimer);
-    if(!reducedMotion) resumeTimer=setTimeout(()=>{ controls.autoRotate=true; }, 2500);
+    resumeTimer=setTimeout(()=>{ controls.autoRotate=true; }, 2200);
   });
 
-  // Figur (die Ringe an Gliedmaßen drehen mit)
+  // Figur + alle Ringe rotieren gemeinsam
   bodyGroup=new THREE.Group();
   bodyGroup.add(buildFigure());
   scene.add(bodyGroup);
 
   rings=buildRings();
   rings.forEach(r=>{
-    (r.def.limb ? bodyGroup : scene).add(r.holder);
+    bodyGroup.add(r.holder);
     r.label=makeLabel(r.def);
     r.line=document.createElementNS(SVGNS,"line");
     r.line.setAttribute("stroke","rgba(70,216,232,.4)");
     r.line.setAttribute("stroke-width","1");
     leaderSvg.appendChild(r.line);
     r.dot=document.createElementNS(SVGNS,"circle");
-    r.dot.setAttribute("r","2.5");
+    r.dot.setAttribute("r","2.6");
     r.dot.setAttribute("fill","#46d8e8");
     leaderSvg.appendChild(r.dot);
   });
 
   // Boden: polares Gitter + leuchtender Ring
-  const grid=new THREE.PolarGridHelper(0.85, 12, 5, 56, 0x1d4a55, 0x16323d);
+  const grid=new THREE.PolarGridHelper(0.9, 12, 5, 64, 0x1d4a55, 0x143038);
   grid.material.transparent=true;
-  grid.material.opacity=0.5;
+  grid.material.opacity=0.45;
   scene.add(grid);
   const glowRing=new THREE.Mesh(
-    new THREE.RingGeometry(0.82, 0.86, 72),
-    new THREE.MeshBasicMaterial({color:ACCENT, transparent:true, opacity:0.35, blending:THREE.AdditiveBlending, side:THREE.DoubleSide})
+    new THREE.RingGeometry(0.86, 0.92, 80),
+    new THREE.MeshBasicMaterial({color:ACCENT, transparent:true, opacity:0.32, blending:THREE.AdditiveBlending, side:THREE.DoubleSide})
   );
   glowRing.rotation.x=-Math.PI/2;
   glowRing.position.y=0.002;
@@ -94,9 +105,7 @@ export function initBodyScene(){
     setHover(hits.length ? hits[0].object.userData.ringId : null);
   });
   renderer.domElement.addEventListener("pointerleave", ()=>setHover(null));
-  renderer.domElement.addEventListener("click", ()=>{
-    if(hoveredId) selectMetric(hoveredId);
-  });
+  renderer.domElement.addEventListener("click", ()=>{ if(hoveredId) selectMetric(hoveredId); });
 
   new ResizeObserver(resize).observe(container);
   resize();
@@ -124,7 +133,7 @@ function setHover(id, fromLabel=false){
   rings.forEach(r=>{
     const hl=r.def.id===id;
     r.label.classList.toggle("hl", hl);
-    r.mat.opacity = hl?1 : (r.def.id===db.activeMetric?0.95:(r.hasData?0.8:0.3));
+    r.mat.opacity = hl?1 : (r.def.id===db.activeMetric?0.95:(r.hasData?0.85:0.3));
   });
 }
 
@@ -143,7 +152,7 @@ export function updateBodyData(){
       valEl.innerHTML=`${t.calc?"≈ ":""}${fmtNum(t.v)} ${m.unit}${trend}`;
       r.label.classList.remove("dim");
       r.mat.color.setHex(t.bad?BAD:ACCENT);
-      r.mat.opacity=0.8;
+      r.mat.opacity=0.85;
       setRingRadius(r.holder, r.def, radiusFromCircumference(t.v, db.settings.height));
       r.line.setAttribute("stroke", t.bad?"rgba(240,131,114,.45)":"rgba(70,216,232,.4)");
       r.dot.setAttribute("fill", t.bad?"#f08372":"#46d8e8");
@@ -159,9 +168,7 @@ export function updateBodyData(){
 }
 
 export function setActiveRing(){
-  rings.forEach(r=>{
-    r.label.classList.toggle("active", r.def.id===db.activeMetric);
-  });
+  rings.forEach(r=>r.label.classList.toggle("active", r.def.id===db.activeMetric));
 }
 
 function resize(){
@@ -176,26 +183,24 @@ function resize(){
 function tick(){
   controls.update();
 
-  // Labels und Leader-Linien an die projizierten Ringpositionen heften
+  // Labels an die feste Bildschirmseite pinnen, Leader-Linie an die
+  // jeweils zur Seite zeigende Silhouetten-Kante des Rings führen.
   const w=container.clientWidth, h=container.clientHeight;
   rings.forEach(r=>{
     const sideSign=r.def.side==="right"?1:-1;
-    ringAnchor(r, sideSign, _world);
-    _world.project(camera);
-    const sx=( _world.x*0.5+0.5)*w;
-    const sy=(-_world.y*0.5+0.5)*h;
+    ringEdgeScreen(r, sideSign, camera, w, h, _edge);
 
     const labelW=r.label.offsetWidth;
     const lx=r.def.side==="right" ? w-12-labelW : 12+labelW;
-    const ly=Math.max(26, Math.min(h-40, sy));
+    const ly=Math.max(24, Math.min(h-40, _edge.y));
     r.label.style.top=ly+"px";
 
     r.line.setAttribute("x1", lx);
     r.line.setAttribute("y1", ly);
-    r.line.setAttribute("x2", sx);
-    r.line.setAttribute("y2", sy);
-    r.dot.setAttribute("cx", sx);
-    r.dot.setAttribute("cy", sy);
+    r.line.setAttribute("x2", _edge.x);
+    r.line.setAttribute("y2", _edge.y);
+    r.dot.setAttribute("cx", _edge.x);
+    r.dot.setAttribute("cy", _edge.y);
   });
 
   renderer.render(scene, camera);
