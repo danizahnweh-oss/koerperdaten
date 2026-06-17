@@ -1,131 +1,89 @@
-// Prozedurale Hologramm-Figur (~1,80 Einheiten hoch, Füße bei y=0).
-// "Solider Scan"-Look: lit MeshStandardMaterial für echtes Volumen,
-// darüber eine Fresnel-Hülle für den leuchtenden Hologramm-Rand.
-// Plus Mess-Ringe, deren Radius auf die echten Umfänge skaliert.
+// Prozedurale "Body-Scan"-Figur (~1,80 Einheiten hoch, Füße bei y=0).
+// Heller, matter Graukörper im Studio-Licht – wie ein 3D-Körperscan.
+// Athletische Proportionen mit Muskelandeutungen (Brust, Schultern,
+// Gesäß, Waden). Plus Mess-Ringe, deren Radius auf die echten Umfänge skaliert.
 import * as THREE from "three";
+import { MarchingCubes } from "three/addons/objects/MarchingCubes.js";
 
-export const ACCENT = 0x46d8e8;
+export const ACCENT = 0x3fc6ff;   // Scan-Blau für die Ringe
 export const BAD = 0xf08372;
 const FIG_HEIGHT = 1.8;
-const UP = new THREE.Vector3(0,1,0);
+const V=(x,y,z=0)=>new THREE.Vector3(x,y,z);
 
-// Solider Körper – bekommt durch die Lichter im Scene echtes Shading
-const solidMat = new THREE.MeshStandardMaterial({
-  color:0x0b2a31, emissive:0x0c4a55, emissiveIntensity:0.55,
-  metalness:0.35, roughness:0.45, transparent:true, opacity:0.94,
+// Matter, heller Körper – bekommt Form allein durchs Licht
+const bodyMat = new THREE.MeshStandardMaterial({
+  color:0x9aa3ad, roughness:0.72, metalness:0.0,
 });
 
-// Fresnel-Hülle: leuchtende Silhouette, durchscheinende Mitte
-function fresnelMaterial(){
-  return new THREE.ShaderMaterial({
-    uniforms:{ uColor:{value:new THREE.Color(ACCENT)}, uStrength:{value:0.7} },
-    vertexShader:`
-      varying vec3 vN; varying vec3 vV;
-      void main(){
-        vec4 mv = modelViewMatrix * vec4(position,1.0);
-        vN = normalize(normalMatrix * normal);
-        vV = normalize(-mv.xyz);
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader:`
-      uniform vec3 uColor; uniform float uStrength;
-      varying vec3 vN; varying vec3 vV;
-      void main(){
-        float f = pow(1.0 - abs(dot(vN, vV)), 2.6);
-        gl_FragColor = vec4(uColor, f * uStrength);
-      }`,
-    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-  });
-}
-const fresnelMat = fresnelMaterial();
+// Globaler Fülligkeits-Regler (zum Feintuning an einer Stelle)
+const GIRTH = 0.3;
+const SUB = 12;          // Metaball-Falloff
+const CY = 0.9;          // Feld-Mittelpunkt (Welt-y)
 
-// Mesh als solider Körper + Fresnel-Hülle ablegen
-function emit(group, geo, pos, quat, scale){
-  const solid=new THREE.Mesh(geo, solidMat);
-  if(pos) solid.position.copy(pos);
-  if(quat) solid.quaternion.copy(quat);
-  if(scale) solid.scale.copy(scale);
-  const shell=new THREE.Mesh(geo, fresnelMat);
-  shell.position.copy(solid.position);
-  shell.quaternion.copy(solid.quaternion);
-  shell.scale.copy(solid.scale);
-  shell.renderOrder=1;
-  group.add(solid, shell);
+// Ein Metaball an Welt-Koordinaten (Feld erwartet [0,1])
+function ball(eff, x, y, z, strength){
+  eff.addBall(x/2+0.5, (y-CY)/2+0.5, z/2+0.5, strength*GIRTH, SUB);
+}
+// Bälle-Kette zwischen zwei Punkten -> glatter "Knochen"
+function tube(eff, a, b, n, strength){
+  for(let i=0;i<=n;i++){
+    const t=i/n;
+    ball(eff, a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t, a.z+(b.z-a.z)*t, strength);
+  }
 }
 
-// Kapsel-Segment zwischen zwei Gelenkpunkten (für Arme/Beine)
-const _dir=new THREE.Vector3(), _mid=new THREE.Vector3(), _q=new THREE.Quaternion();
-function segment(group, a, b, r){
-  _dir.subVectors(b,a);
-  const len=_dir.length();
-  const geo=new THREE.CapsuleGeometry(r, Math.max(0.001,len-r*1.2), 8, 18);
-  _mid.addVectors(a,b).multiplyScalar(0.5);
-  _q.setFromUnitVectors(UP, _dir.normalize());
-  emit(group, geo, _mid, _q, null);
-}
-function joint(group, p, r, squashZ=1){
-  emit(group, new THREE.SphereGeometry(r, 20, 16), p, null, new THREE.Vector3(1,1,squashZ));
-}
-const P=(x,y,z=0)=>new THREE.Vector3(x,y,z);
-
+// Verschmolzener Körper aus Metaballs -> eine durchgehende, glatte Oberfläche
 export function buildFigure(){
-  const g=new THREE.Group();
+  const eff=new MarchingCubes(96, bodyMat, true, false, 200000);
+  eff.position.set(0, CY, 0);
+  eff.scale.set(1,1,1);
+  eff.isolation=80;
+  eff.castShadow=true; eff.receiveShadow=true;
+  eff.reset();
 
-  // Kopf (leicht eiförmig) + Hals
-  emit(g, new THREE.SphereGeometry(0.108, 28, 24), P(0,1.695,0), null, new THREE.Vector3(0.92,1.08,0.96));
-  segment(g, P(0,1.515,0), P(0,1.595,0.004), 0.052);
+  // Kopf, Hals, Trapez
+  ball(eff, 0, 1.715, 0.006, 0.6);           // Kopf
+  ball(eff, 0, 1.605, -0.006, 0.32);         // Hals
+  tube(eff, V(-0.055,1.535,-0.02), V(0.055,1.535,-0.02), 2, 0.23); // Trapez
 
-  // Rumpf als elliptischer Drehkörper: Schulter → Brust → Taille → Hüfte
-  const profile=[
-    [0.001,1.565],[0.058,1.555],[0.11,1.545],[0.168,1.515],[0.196,1.49],
-    [0.19,1.45],[0.176,1.40],[0.152,1.32],[0.133,1.24],[0.127,1.18],
-    [0.137,1.11],[0.158,1.045],[0.16,1.005],[0.142,0.97],[0.001,0.952],
-  ].map(p=>new THREE.Vector2(p[0],p[1]));
-  const torsoGeo=new THREE.LatheGeometry(profile, 48);
-  emit(g, torsoGeo, P(0,0,0), null, new THREE.Vector3(1,1,0.62)); // tiefer gestaucht = menschlicher Querschnitt
+  // Rumpf: V-Taper über die vertikale Kette + seitliche Massen
+  ball(eff, 0, 1.0, 0, 0.28);                // Becken
+  ball(eff,  0.1, 1.01, 0, 0.26); ball(eff, -0.1, 1.01, 0, 0.26); // Hüften
+  ball(eff,  0.07, 0.99, -0.06, 0.2); ball(eff, -0.07, 0.99, -0.06, 0.2); // Gesäß
+  ball(eff, 0, 1.1, 0, 0.29);                // Unterbauch
+  ball(eff, 0, 1.19, 0, 0.25);               // Taille (schmal)
+  ball(eff, 0, 1.29, 0.02, 0.29);            // oberer Bauch
+  ball(eff, 0, 1.4, 0.03, 0.34);             // Brustkorb
+  ball(eff,  0.082, 1.41, 0.06, 0.22); ball(eff, -0.082, 1.41, 0.06, 0.22); // Pecs
+  ball(eff,  0.165, 1.48, 0, 0.28); ball(eff, -0.165, 1.48, 0, 0.28); // Schultern/Deltoid
 
-  // Schulter- und Hüftgelenke füllen die Übergänge
-  joint(g, P( 0.182,1.485,0), 0.062, 0.85);
-  joint(g, P(-0.182,1.485,0), 0.062, 0.85);
-  joint(g, P( 0.092,1.0,0), 0.075, 0.85);
-  joint(g, P(-0.092,1.0,0), 0.075, 0.85);
+  // Arme: Schulter -> Ellbogen -> Handgelenk + Hand (leichte A-Pose)
+  for(const s of [1,-1]){
+    const shoulder=V(s*0.165,1.47,0), elbow=V(s*0.225,1.16,0.02), wrist=V(s*0.255,0.86,0.04);
+    tube(eff, shoulder, elbow, 6, 0.18);  // Oberarm/Bizeps
+    tube(eff, elbow, wrist, 6, 0.15);     // Unterarm
+    ball(eff, s*0.262, 0.805, 0.05, 0.14);// Hand
+  }
+  // Beine: weiter auseinander, länger getrennt
+  for(const s of [1,-1]){
+    const hip=V(s*0.105,0.99,0), knee=V(s*0.108,0.52,0.02), ankle=V(s*0.11,0.09,0);
+    tube(eff, hip, knee, 7, 0.3);         // Oberschenkel
+    tube(eff, knee, ankle, 7, 0.23);      // Wade/Schienbein
+    tube(eff, V(s*0.11,0.05,-0.01), V(s*0.11,0.04,0.16), 3, 0.15); // Fuß
+  }
 
-  // Arme: Schulter → Ellbogen → Handgelenk, Hände
-  buildArm(g,  1);
-  buildArm(g, -1);
-  // Beine: Hüfte → Knie → Knöchel, Füße
-  buildLeg(g,  1);
-  buildLeg(g, -1);
-
-  return g;
-}
-
-function buildArm(g, s){
-  const shoulder=P(s*0.198,1.485,0), elbow=P(s*0.214,1.155,0.01), wrist=P(s*0.222,0.86,0.02);
-  segment(g, shoulder, elbow, 0.046);
-  joint(g, elbow, 0.044);
-  segment(g, elbow, wrist, 0.04);
-  joint(g, wrist, 0.034);                                   // Handgelenk
-  emit(g, new THREE.SphereGeometry(0.05,16,12), P(s*0.224,0.815,0.03), null, new THREE.Vector3(0.7,1.15,0.45)); // Hand
-}
-function buildLeg(g, s){
-  const hip=P(s*0.092,1.0,0), knee=P(s*0.099,0.5,0.01), ankle=P(s*0.104,0.085,0);
-  segment(g, hip, knee, 0.072);
-  joint(g, knee, 0.06);
-  segment(g, knee, ankle, 0.055);
-  // Fuß nach vorn
-  emit(g, new THREE.CapsuleGeometry(0.05,0.1,6,12), P(s*0.104,0.04,0.075),
-    _q.setFromUnitVectors(UP, P(0,0.25,1).normalize()), new THREE.Vector3(0.85,1,1));
+  if(typeof eff.update==="function") eff.update();
+  return eff;
 }
 
 // Mess-Ringe: id, Höhe, Standardradius, Mittelpunkt-x (Gliedmaßen), z-Stauchung, Label-Seite
 export const RING_DEFS=[
-  {id:"neck",  y:1.535, r:0.062, cx:0,     squash:0.86, side:"right"},
-  {id:"chest", y:1.41,  r:0.185, cx:0,     squash:0.64, side:"right"},
-  {id:"arm",   y:1.30,  r:0.055, cx:0.205, squash:1,    side:"left"},
-  {id:"waist", y:1.19,  r:0.135, cx:0,     squash:0.64, side:"right"},
-  {id:"hip",   y:1.04,  r:0.17,  cx:0,     squash:0.68, side:"right"},
-  {id:"thigh", y:0.78,  r:0.092, cx:0.096, squash:1,    side:"left"},
+  {id:"neck",  y:1.535, r:0.065, cx:0,     squash:0.84, side:"right"},
+  {id:"chest", y:1.41,  r:0.195, cx:0,     squash:0.62, side:"right"},
+  {id:"arm",   y:1.33,  r:0.06,  cx:0.215, squash:1,    side:"left"},
+  {id:"waist", y:1.19,  r:0.13,  cx:0,     squash:0.62, side:"right"},
+  {id:"hip",   y:1.02,  r:0.175, cx:0,     squash:0.66, side:"right"},
+  {id:"thigh", y:0.78,  r:0.098, cx:0.097, squash:1,    side:"left"},
 ];
 
 export function buildRings(){
@@ -134,14 +92,13 @@ export function buildRings(){
     holder.position.set(def.cx, def.y, 0);
 
     const mat=new THREE.MeshBasicMaterial({
-      color:ACCENT, transparent:true, opacity:0.85,
-      blending:THREE.AdditiveBlending, depthWrite:false,
+      color:ACCENT, transparent:true, opacity:0.95, depthWrite:false, depthTest:false,
     });
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 12, 80), mat);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1, 0.009, 10, 96), mat);
     ring.rotation.x=Math.PI/2;
+    ring.renderOrder=3;
     holder.add(ring);
 
-    // unsichtbare, dickere Trefffläche fürs Maus-Picking
     const hit=new THREE.Mesh(
       new THREE.TorusGeometry(1, 0.05, 6, 40),
       new THREE.MeshBasicMaterial({transparent:true, opacity:0, depthWrite:false})
@@ -163,19 +120,16 @@ export function radiusFromCircumference(cm, personHeightCm){
 }
 
 export function setRingRadius(holder, def, r){
-  // Torus liegt in der XZ-Ebene: x-Radius = r, z-Radius = r*squash
   holder.scale.set(r, 1, r*def.squash);
 }
 
-// Vorberechnete Kreis-Stützpunkte, um pro Frame die Silhouetten-Kante
-// des Rings (am nächsten zur Label-Seite) zu finden.
+// Vorberechnete Kreis-Stützpunkte: pro Frame die Silhouetten-Kante des
+// Rings (am nächsten zur Label-Seite) finden.
 const RING_SAMPLES = Array.from({length:32}, (_,i)=>{
   const a=(i/32)*Math.PI*2;
   return new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
 });
 const _p=new THREE.Vector3();
-// Liefert den Bildschirm-Punkt am Ring-Rand, der am weitesten zur
-// Label-Seite (sideSign: +1 rechts, -1 links) liegt.
 export function ringEdgeScreen(entry, sideSign, camera, w, h, out){
   let bestX = sideSign>0 ? -Infinity : Infinity, sx=0, sy=0;
   entry.holder.updateWorldMatrix(true, false);

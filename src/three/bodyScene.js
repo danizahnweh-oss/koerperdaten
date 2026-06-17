@@ -23,26 +23,37 @@ export function initBodyScene(){
   leaderSvg=document.getElementById("leaderSvg");
 
   scene=new THREE.Scene();
-  scene.fog=new THREE.FogExp2(0x0a0e16, 0.16);
+  scene.fog=new THREE.FogExp2(0x0a0e16, 0.07);
   camera=new THREE.PerspectiveCamera(34, 1, 0.1, 50);
-  camera.position.set(0, 1.12, 3.35);
+  camera.position.set(1.15, 1.12, 3.15);
 
   renderer=new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace=THREE.SRGBColorSpace;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.05;
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   container.prepend(renderer.domElement);
 
-  // Beleuchtung: gibt dem Körper Volumen, Cyan-Rim für den Sci-Fi-Look
-  scene.add(new THREE.HemisphereLight(0x2e7886, 0x05101a, 0.85));
-  const key=new THREE.DirectionalLight(0xbfeef5, 1.15);
-  key.position.set(-1.6, 2.4, 2.2);
+  // Studio-Beleuchtung für den "Body-Scan"-Look: helles Key-Licht,
+  // weiches Fill, dezenter kühler Rim, alles auf neutralem Grau.
+  scene.add(new THREE.HemisphereLight(0xc7d2dc, 0x141a22, 0.55));
+  const key=new THREE.DirectionalLight(0xffffff, 2.0);
+  key.position.set(-1.7, 3.0, 2.6);
+  key.castShadow=true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.near=0.5; key.shadow.camera.far=8;
+  key.shadow.camera.left=-1.2; key.shadow.camera.right=1.2;
+  key.shadow.camera.top=2.4; key.shadow.camera.bottom=-0.2;
+  key.shadow.bias=-0.0008; key.shadow.radius=4;
   scene.add(key);
-  const rim=new THREE.DirectionalLight(0x46d8e8, 2.1);
-  rim.position.set(1.4, 1.0, -2.4);
-  scene.add(rim);
-  const fill=new THREE.PointLight(0x2aa6b8, 0.7, 8);
-  fill.position.set(2.2, 0.6, 1.6);
+  const fill=new THREE.DirectionalLight(0x9fb4c8, 0.7);
+  fill.position.set(2.6, 1.4, 1.8);
   scene.add(fill);
+  const rim=new THREE.DirectionalLight(0x5fbfff, 1.0);
+  rim.position.set(0.6, 1.6, -3.0);
+  scene.add(rim);
 
   controls=new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0.98, 0);
@@ -73,27 +84,32 @@ export function initBodyScene(){
     bodyGroup.add(r.holder);
     r.label=makeLabel(r.def);
     r.line=document.createElementNS(SVGNS,"line");
-    r.line.setAttribute("stroke","rgba(70,216,232,.4)");
+    r.line.setAttribute("stroke","rgba(214,226,238,.55)");
     r.line.setAttribute("stroke-width","1");
     leaderSvg.appendChild(r.line);
     r.dot=document.createElementNS(SVGNS,"circle");
-    r.dot.setAttribute("r","2.6");
-    r.dot.setAttribute("fill","#46d8e8");
+    r.dot.setAttribute("r","2.8");
+    r.dot.setAttribute("fill","#dce6f2");
     leaderSvg.appendChild(r.dot);
   });
 
-  // Boden: polares Gitter + leuchtender Ring
-  const grid=new THREE.PolarGridHelper(0.9, 12, 5, 64, 0x1d4a55, 0x143038);
-  grid.material.transparent=true;
-  grid.material.opacity=0.45;
-  scene.add(grid);
-  const glowRing=new THREE.Mesh(
-    new THREE.RingGeometry(0.86, 0.92, 80),
-    new THREE.MeshBasicMaterial({color:ACCENT, transparent:true, opacity:0.32, blending:THREE.AdditiveBlending, side:THREE.DoubleSide})
+  // Boden: fängt den weichen Schatten auf (sonst unsichtbar)
+  const floor=new THREE.Mesh(
+    new THREE.CircleGeometry(1.4, 64),
+    new THREE.ShadowMaterial({opacity:0.4})
   );
-  glowRing.rotation.x=-Math.PI/2;
-  glowRing.position.y=0.002;
-  scene.add(glowRing);
+  floor.rotation.x=-Math.PI/2;
+  floor.position.y=0.001;
+  floor.receiveShadow=true;
+  scene.add(floor);
+  // dezenter Standkreis
+  const ring=new THREE.Mesh(
+    new THREE.RingGeometry(0.74, 0.755, 80),
+    new THREE.MeshBasicMaterial({color:0x3fc6ff, transparent:true, opacity:0.25, side:THREE.DoubleSide})
+  );
+  ring.rotation.x=-Math.PI/2;
+  ring.position.y=0.002;
+  scene.add(ring);
 
   // Hover über Ringe
   renderer.domElement.addEventListener("pointermove", ev=>{
@@ -154,8 +170,8 @@ export function updateBodyData(){
       r.mat.color.setHex(t.bad?BAD:ACCENT);
       r.mat.opacity=0.85;
       setRingRadius(r.holder, r.def, radiusFromCircumference(t.v, db.settings.height));
-      r.line.setAttribute("stroke", t.bad?"rgba(240,131,114,.45)":"rgba(70,216,232,.4)");
-      r.dot.setAttribute("fill", t.bad?"#f08372":"#46d8e8");
+      r.line.setAttribute("stroke", t.bad?"rgba(240,131,114,.55)":"rgba(214,226,238,.55)");
+      r.dot.setAttribute("fill", t.bad?"#f08372":"#dce6f2");
     }else{
       valEl.textContent="–";
       r.label.classList.add("dim");
