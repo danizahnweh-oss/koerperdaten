@@ -11,7 +11,9 @@ import { renderTabs, renderChart } from "./ui/chart.js";
 import { renderTable } from "./ui/table.js";
 import { initForm } from "./ui/form.js";
 import { initSettings } from "./ui/settings.js";
-import { initBodyScene, updateBodyData, setActiveRing } from "./three/bodyScene.js";
+import { initBodyScene, updateBodyData, setActiveRing, setScenePaused } from "./three/bodyScene.js";
+import { initTraining, renderTraining, redrawTrainingChart } from "./training/ui.js";
+import { initViews } from "./ui/view.js";
 
 function renderMeta(){
   document.getElementById("subline").textContent =
@@ -32,16 +34,21 @@ function renderAll(){
   updateBodyData();
 }
 
-bus.addEventListener("change", renderAll);
+bus.addEventListener("change", ()=>{ renderAll(); renderTraining(); });
 bus.addEventListener("select-metric", ()=>{
   renderStats();
   renderTabs();
   renderChart();
   setActiveRing();
 });
-window.addEventListener("resize", renderChart);
+window.addEventListener("resize", ()=>{ renderChart(); redrawTrainingChart(); });
 
 initForm();
 initSettings();
 initBodyScene();
 renderAll();
+initTraining();
+initViews(v=>{
+  setScenePaused(v!=="body");
+  if(v==="body") renderChart(); else redrawTrainingChart();  // Charts brauchen sichtbare Größe
+});

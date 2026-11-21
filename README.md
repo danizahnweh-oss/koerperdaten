@@ -35,6 +35,10 @@ src/
     bodyScene.js        3D-Viewer, Rotation, HUD-Labels, Picking
   ui/
     stats.js  zones.js  chart.js  table.js  form.js  settings.js  toast.js
+    view.js             Umschalten Körper/Training (Tabs, Wischen, #training)
+  training/
+    store.js            Trainingsplan, Einheiten, Progressionslogik
+    ui.js               Training starten/loggen, Fortschritt, Plan-Editor, Verlauf
   styles/main.css       Design-System (Tokens, Hologramm-Optik)
 ```
 
@@ -44,8 +48,17 @@ Damit die automatischen Werte (≈) erscheinen, in den **Einstellungen** Größe
 und Geburtsjahr hinterlegen. Körperfett nach US-Navy braucht zusätzlich Hals- und
 Taillenumfang (bei Frauen auch Hüfte) in der jeweiligen Messung.
 
+## Training
+
+Oben auf **Training** umschalten (am Handy auch per Wischen). Tag wählen, Training
+starten, pro Satz **+** tippen (trägt das Ziel ein), bei Bedarf anpassen und unsaubere
+Sätze markieren. Beim Abschließen steigt das Gewicht automatisch (doppelte Progression):
+alle Sätze am oberen Ende des Wiederholungsbereichs **und** sauber → nächstes Mal
++Steigerung. Löscht man eine Einheit, wird eine dadurch ausgelöste Steigerung zurückgenommen.
+Körpergewichtsübungen nutzen das zuletzt gemessene Körpergewicht.
+
 ## Daten sichern
 
-`↓ Export` schreibt eine JSON-Datei mit allen Einträgen und Einstellungen. `↑ Import`
+`↓ Export` schreibt eine JSON-Datei mit allen Einträgen, Einstellungen und Trainingsdaten. `↑ Import`
 führt sie wieder zusammen (per Datum). Die alte Einzeldatei-Version liegt als
 `legacy-v1.html` daneben; ihr Datenformat ist kompatibel.

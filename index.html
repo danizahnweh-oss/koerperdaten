@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Körperdaten</title>
 </head>
@@ -18,6 +18,10 @@
         <div class="sub" id="subline">Dein persönliches Tracking</div>
       </div>
     </div>
+    <nav class="viewswitch" role="tablist" aria-label="Bereich">
+      <button type="button" role="tab" id="tab-body" aria-controls="view-body" data-view="body">Körper</button>
+      <button type="button" role="tab" id="tab-training" aria-controls="view-training" data-view="training">Training</button>
+    </nav>
     <div class="toolbar">
       <button class="btn ghost" id="settingsBtn">⚙ Einstellungen</button>
       <button class="btn ghost" id="exportBtn">↓ Export</button>
@@ -26,6 +30,7 @@
     </div>
   </header>
 
+  <main id="view-body" role="tabpanel" aria-labelledby="tab-body">
   <!-- Hero: 3D-Körper + Kennwerte -->
   <section class="hero">
     <div class="panel viewer" id="viewer">
@@ -87,6 +92,33 @@
   </div>
 
   <p class="foot-note">≈ automatisch berechnet · Körperfett: US-Navy-Methode (Größe, Hals, Taille<span id="hipHint"></span>) · Muskelmasse: Lee-Formel (Gewicht, Größe, Alter, Geschlecht) · Fett- &amp; Magermasse aus Gewicht × Körperfett</p>
+  </main>
+
+  <main id="view-training" role="tabpanel" aria-labelledby="tab-training" hidden>
+    <section class="panel" id="tToday"></section>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Fortschritt</h2><div class="tabs" id="tProgTabs"></div></div>
+      <div class="chart-box">
+        <svg class="chart" id="tChart"></svg>
+        <div class="tooltip" id="tTooltip"></div>
+        <div class="chart-empty" id="tChartEmpty" style="display:none"></div>
+      </div>
+      <div class="prog-info" id="tProgInfo"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Trainingsplan</h2><span class="sub">Gewicht = nächstes Arbeitsgewicht, wird automatisch gesteigert</span></div>
+      <div id="tPlan" class="plan"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Verlauf</h2><span class="sub" id="tHistCount"></span></div>
+      <div id="tHistory"></div>
+    </div>
+
+    <p class="foot-note">Steigerung (doppelte Progression): Erreichst du in allen Sätzen das obere Ende des Wiederholungsbereichs und alle Sätze waren sauber, steigt das Gewicht beim nächsten Mal um den eingestellten Schritt. Bei festen Wiederholungen (z. B. 3 × 5) heißt das: alle Sätze geschafft. Fortschritt-Chart: geschätztes Maximum (1RM) nach Epley aus dem besten Satz.</p>
+  </main>
 
 </div>
 
@@ -112,6 +144,8 @@
     </div>
   </div>
 </div>
+
+<div class="modal-bg" id="tSummary"><div class="modal" role="dialog" aria-modal="true"></div></div>
 
 <div class="toast" id="toast"></div>
 

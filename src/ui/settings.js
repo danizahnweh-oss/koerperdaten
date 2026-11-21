@@ -1,6 +1,7 @@
 import { db, saveSettings, clearAll, importData, emitChange } from "../store.js";
 import { todayISO } from "../util.js";
 import { toast } from "./toast.js";
+import { exportTraining, importTraining, emitTraining } from "../training/store.js";
 
 export function initSettings(){
   const sm=document.getElementById("settingsModal");
@@ -39,7 +40,7 @@ export function initSettings(){
 
   // Export / Import
   document.getElementById("exportBtn").onclick=()=>{
-    const payload={app:"koerperdaten",version:2,exportedAt:new Date().toISOString(),settings:db.settings,entries:db.entries};
+    const payload={app:"koerperdaten",version:2,exportedAt:new Date().toISOString(),settings:db.settings,entries:db.entries,training:exportTraining()};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
@@ -55,9 +56,13 @@ export function initSettings(){
     const r=new FileReader();
     r.onload=()=>{
       try{
-        const n=importData(JSON.parse(r.result));
-        emitChange();
-        toast(n+" Einträge importiert");
+        const data=JSON.parse(r.result);
+        const hasEntries=Array.isArray(data) || Array.isArray(data.entries);
+        const n=hasEntries ? importData(data) : 0;
+        const t=data && data.training ? importTraining(data.training) : 0;
+        if(!hasEntries && !data.training) throw new Error("Format");
+        emitChange(); emitTraining();
+        toast(n+" Messungen"+(data.training?", "+t+" Trainingseinheiten":"")+" importiert");
       }catch(e){
         toast("Import fehlgeschlagen: ungültige Datei");
       }

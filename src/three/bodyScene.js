@@ -187,6 +187,13 @@ export function setActiveRing(){
   rings.forEach(r=>r.label.classList.toggle("active", r.def.id===db.activeMetric));
 }
 
+// 3D-Loop anhalten, solange die Körper-Ansicht verborgen ist (spart Akku)
+export function setScenePaused(paused){
+  if(!renderer) return;
+  renderer.setAnimationLoop(paused ? null : tick);
+  if(!paused) resize();
+}
+
 function resize(){
   const w=container.clientWidth, h=container.clientHeight;
   if(!w||!h) return;

@@ -22,7 +22,6 @@ export function renderTabs(){
 
 export function renderChart(){
   const svg=document.getElementById("chart");
-  const box=svg.parentElement;
   const empty=document.getElementById("chartEmpty");
   const m=metric(db.activeMetric)||METRICS[0];
   const data=seriesFor(db.activeMetric);
@@ -36,6 +35,15 @@ export function renderChart(){
     return;
   }
   empty.style.display="none";
+  drawLineChart(svg, document.getElementById("tooltip"), data, p=>
+    `<b>${p.calc?"≈ ":""}${fmtNum(p.v)} ${m.unit}</b><div class="tt-date">${fmtDate(p.date)}${p.calc?" · berechnet":""}</div>`);
+}
+
+// Generischer Linien-Chart: data = [{date, v, calc?}], tip(p) liefert Tooltip-HTML.
+export function drawLineChart(svg, tooltip, data, tip){
+  svg.innerHTML="";
+  const box=svg.parentElement;
+  const gid=svg.id||"c";
 
   const W=box.clientWidth, H=box.clientHeight;
   const padL=48, padR=18, padT=16, padB=30;
@@ -74,31 +82,36 @@ export function renderChart(){
   const dArea=dPath+`L${x(n-1)} ${padT+ih} L${x(0)} ${padT+ih} Z`;
 
   const defs=mk("defs",{});
-  const grad=mk("linearGradient",{id:"grad",x1:0,y1:0,x2:0,y2:1});
+  const grad=mk("linearGradient",{id:gid+"-grad",x1:0,y1:0,x2:0,y2:1});
   grad.appendChild(mk("stop",{offset:"0%","stop-color":"#46d8e8","stop-opacity":.20}));
   grad.appendChild(mk("stop",{offset:"100%","stop-color":"#46d8e8","stop-opacity":0}));
   defs.appendChild(grad);
-  const filter=mk("filter",{id:"lineGlow",x:"-20%",y:"-200%",width:"140%",height:"500%"});
+  const filter=mk("filter",{id:gid+"-glow",x:"-20%",y:"-200%",width:"140%",height:"500%"});
   filter.appendChild(mk("feGaussianBlur",{stdDeviation:4}));
   defs.appendChild(filter);
   svg.appendChild(defs);
 
-  svg.appendChild(mk("path",{d:dArea,fill:"url(#grad)"}));
-  svg.appendChild(mk("path",{d:dPath,fill:"none",stroke:"#46d8e8","stroke-width":3,opacity:.5,filter:"url(#lineGlow)"}));
+  svg.appendChild(mk("path",{d:dArea,fill:`url(#${gid}-grad)`}));
+  svg.appendChild(mk("path",{d:dPath,fill:"none",stroke:"#46d8e8","stroke-width":3,opacity:.5,filter:`url(#${gid}-glow)`}));
   svg.appendChild(mk("path",{d:dPath,fill:"none",stroke:"#46d8e8","stroke-width":2.2,"stroke-linejoin":"round","stroke-linecap":"round"}));
 
   // Punkte + Tooltip
-  const tooltip=document.getElementById("tooltip");
   data.forEach((p,i)=>{
     const X=x(i),Y=y(p.v);
     const dot=mk("circle",{cx:X,cy:Y,r:n>40?2.5:4,fill:"#0a0e16",stroke:"#46d8e8","stroke-width":2});
-    const hit=mk("circle",{cx:X,cy:Y,r:14,fill:"transparent",style:"cursor:pointer"});
-    hit.addEventListener("mouseenter",()=>{
+    const hit=mk("circle",{cx:X,cy:Y,r:16,fill:"transparent",style:"cursor:pointer"});
+    const show=()=>{
+      svg.querySelectorAll("circle[data-dot]").forEach(c=>c.setAttribute("r",n>40?2.5:4));
       dot.setAttribute("r",6);
-      tooltip.innerHTML=`<b>${p.calc?"≈ ":""}${fmtNum(p.v)} ${m.unit}</b><div class="tt-date">${fmtDate(p.date)}${p.calc?" · berechnet":""}</div>`;
+      tooltip.innerHTML=tip(p);
       tooltip.style.left=X+"px"; tooltip.style.top=Y+"px"; tooltip.style.opacity=1;
-    });
-    hit.addEventListener("mouseleave",()=>{ dot.setAttribute("r",n>40?2.5:4); tooltip.style.opacity=0; });
+    };
+    const hide=()=>{ dot.setAttribute("r",n>40?2.5:4); tooltip.style.opacity=0; };
+    dot.setAttribute("data-dot","");
+    hit.addEventListener("mouseenter",show);
+    hit.addEventListener("mouseleave",hide);
+    // Touch: Tippen zeigt den Wert (kein Hover auf Handy)
+    hit.addEventListener("pointerdown",e=>{ if(e.pointerType!=="mouse") show(); });
     svg.appendChild(dot); svg.appendChild(hit);
   });
 }
