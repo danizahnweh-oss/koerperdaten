@@ -2,15 +2,19 @@
 // HUD-Labels mit Leader-Linien, die der Silhouette jedes Frames folgen.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildFigure, buildRings, setRingRadius, radiusFromCircumference, ringEdgeScreen, ACCENT, BAD } from "./figure.js";
+import { buildRings, setRingLoop, ringEdgeScreen, ACCENT, BAD } from "./figure.js";
+import { loadHuman, skinMaterial, setClothing, shapeFromData, MEASURES } from "./human.js";
 import { db, selectMetric } from "../store.js";
-import { metric, trendOf } from "../metrics.js";
+import { metric, trendOf, latestOf } from "../metrics.js";
 import { fmtNum, reducedMotion } from "../util.js";
 
 let renderer, scene, camera, controls, bodyGroup;
+let human=null, skin=null;   // geladene Körperfigur + Hautmaterial (human.js)
 let rings=[];          // [{def, holder, ring, hit, mat, label, line, dot}]
 let container, labelLayer, leaderSvg;
 let hoveredId=null;
+let lastFit=null;      // letztes Anpassungs-Ergebnis (Umfänge der Figur)
+export const getLastFit=()=>lastFit;
 const raycaster=new THREE.Raycaster();
 const pointer=new THREE.Vector2();
 const _edge=new THREE.Vector2();
@@ -38,8 +42,8 @@ export function initBodyScene(){
 
   // Studio-Beleuchtung für den "Body-Scan"-Look: helles Key-Licht,
   // weiches Fill, dezenter kühler Rim, alles auf neutralem Grau.
-  scene.add(new THREE.HemisphereLight(0xc7d2dc, 0x141a22, 0.55));
-  const key=new THREE.DirectionalLight(0xffffff, 2.0);
+  scene.add(new THREE.HemisphereLight(0xd9dde2, 0x1a1612, 0.7));
+  const key=new THREE.DirectionalLight(0xfff0e2, 2.3);
   key.position.set(-1.7, 3.0, 2.6);
   key.castShadow=true;
   key.shadow.mapSize.set(1024,1024);
@@ -76,8 +80,18 @@ export function initBodyScene(){
 
   // Figur + alle Ringe rotieren gemeinsam
   bodyGroup=new THREE.Group();
-  bodyGroup.add(buildFigure());
   scene.add(bodyGroup);
+  loadHuman().then(h=>{
+    human=h;
+    skin=skinMaterial();
+    const mesh=new THREE.Mesh(h.geometry, skin);
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    bodyGroup.add(mesh);
+    updateBodyData();
+  }).catch(err=>{
+    console.error("Körperfigur konnte nicht geladen werden", err);
+    document.getElementById("dragHint").textContent="3D-Figur nicht verfügbar";
+  });
 
   rings=buildRings();
   rings.forEach(r=>{
@@ -155,6 +169,17 @@ function setHover(id, fromLabel=false){
 
 // Werte, Trends und Ringradien aus den Daten aktualisieren
 export function updateBodyData(){
+  // Figur an die aktuellen Daten anpassen; die Ringe folgen ihrer Kontur
+  if(human){
+    const targets={};
+    MEASURES.forEach(id=>{ targets[id]=latestOf(id)?.v ?? null; });
+    const gender=db.settings.gender==="w" ? "female" : "male";
+    const shape=shapeFromData({ gender, heightCm:db.settings.height, weightKg:latestOf("weight")?.v, fatPct:latestOf("fat")?.v });
+    const fit=human.fit({ gender, heightCm:db.settings.height, ...shape, targets });
+    rings.forEach(r=>setRingLoop(r, fit.loops[r.def.id]));
+    setClothing(skin, fit, gender==="female");
+    lastFit=fit;
+  }
   rings.forEach(r=>{
     const m=metric(r.def.id);
     const t=trendOf(r.def.id);
@@ -169,7 +194,6 @@ export function updateBodyData(){
       r.label.classList.remove("dim");
       r.mat.color.setHex(t.bad?BAD:ACCENT);
       r.mat.opacity=0.85;
-      setRingRadius(r.holder, r.def, radiusFromCircumference(t.v, db.settings.height));
       r.line.setAttribute("stroke", t.bad?"rgba(240,131,114,.55)":"rgba(214,226,238,.55)");
       r.dot.setAttribute("fill", t.bad?"#f08372":"#dce6f2");
     }else{
@@ -177,7 +201,6 @@ export function updateBodyData(){
       r.label.classList.add("dim");
       r.mat.color.setHex(ACCENT);
       r.mat.opacity=0.3;
-      setRingRadius(r.holder, r.def, r.baseR);
     }
   });
   setActiveRing();
@@ -199,7 +222,7 @@ function resize(){
   if(!w||!h) return;
   camera.aspect=w/h;
   camera.updateProjectionMatrix();
-  renderer.setSize(w,h);
+  renderer.setSize(w,h,false);   // Größe kommt aus dem CSS, nicht als Inline-Style
   leaderSvg.setAttribute("viewBox",`0 0 ${w} ${h}`);
 }
 
@@ -210,6 +233,9 @@ function tick(){
   // jeweils zur Seite zeigende Silhouetten-Kante des Rings führen.
   const w=container.clientWidth, h=container.clientHeight;
   rings.forEach(r=>{
+    const ready=r.samples.length>0;
+    r.label.style.visibility=r.line.style.visibility=r.dot.style.visibility=ready?"":"hidden";
+    if(!ready) return;
     const sideSign=r.def.side==="right"?1:-1;
     ringEdgeScreen(r, sideSign, camera, w, h, _edge);
 

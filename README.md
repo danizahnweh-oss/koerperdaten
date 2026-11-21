@@ -31,8 +31,12 @@ src/
   metrics.js            Metrik-Definitionen, Serien, Trend-Logik
   util.js               Formatierung, Datum
   three/
-    figure.js           Prozedurale Hologramm-Figur + Mess-Ringe
+    human.js            Körperfigur: laden, an Maße anpassen, Hautmaterial
+    body.bin            Körperdaten (aus MakeHuman erzeugt, siehe unten)
+    figure.js           Mess-Ringe auf der Körperkontur
     bodyScene.js        3D-Viewer, Rotation, HUD-Labels, Picking
+tools/
+  build-body.mjs        erzeugt src/three/body.bin aus den MakeHuman-Daten
   ui/
     stats.js  zones.js  chart.js  table.js  form.js  settings.js  toast.js
     view.js             Umschalten Körper/Training (Tabs, Wischen, #training)
@@ -47,6 +51,20 @@ src/
 Damit die automatischen Werte (≈) erscheinen, in den **Einstellungen** Größe, Geschlecht
 und Geburtsjahr hinterlegen. Körperfett nach US-Navy braucht zusätzlich Hals- und
 Taillenumfang (bei Frauen auch Hüfte) in der jeweiligen Messung.
+
+## 3D-Figur
+
+Die Figur ist ein realistisches Körpermodell aus den Grafikdaten von
+[MakeHuman](https://github.com/makehumancommunity/makehuman) (CC0). Sie formt sich nach
+deinen Daten: Körperfett und fettfreie Masse bestimmen die Grundform (schlank, muskulös,
+füllig), danach werden Brust, Taille, Hüfte, Hals, Oberarm und Oberschenkel so verformt,
+dass der Umfang der Figur an der Messstelle dem eingetragenen Wert entspricht. Die Ringe
+liegen wie ein Maßband auf der Kontur. Ohne Größe in den Einstellungen wird mit 178 cm
+gerechnet.
+
+`src/three/body.bin` neu erzeugen (nur nötig, wenn das Modell geändert werden soll):
+`base.obj` und die `.target`-Dateien aus `makehuman/data` in einen Ordner laden, dann
+`npm run build:body -- <Ordner>`.
 
 ## Training
 
